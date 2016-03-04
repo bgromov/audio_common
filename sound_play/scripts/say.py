@@ -62,7 +62,11 @@ if __name__ == '__main__':
     soundhandle = SoundClient()
     rospy.sleep(1)
 
-    voice = 'voice_kal_diphone'
+    if sys.platform == 'darwin':
+        voice = ''
+    else:
+        voice = 'voice_kal_diphone'
+
     volume = 1.0
 
     if len(sys.argv) == 1:

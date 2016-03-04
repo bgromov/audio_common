@@ -49,10 +49,10 @@ from sound_play.msg import SoundRequest, SoundRequestAction, SoundRequestResult,
 import actionlib
 
 try:
-    import pygst
-    pygst.require('0.10')
-    import gst
-    import gobject
+    import gi
+    gi.require_version('Gst', '1.0')
+    from gi.repository import Gst as gst
+    gst.init(None)
 except:
     str="""
 **************************************************************
@@ -78,7 +78,7 @@ class soundtype:
     def __init__(self, file, volume = 1.0):
         self.lock = threading.RLock()
         self.state = self.STOPPED
-        self.sound = gst.element_factory_make("playbin","player")
+        self.sound = gst.ElementFactory.make("playbin","player")
         if (":" in file):
             uri = file
         elif os.path.isfile(file):
@@ -98,7 +98,7 @@ class soundtype:
         self.bus.connect("message", self.on_stream_end)
 
     def on_stream_end(self, bus, message):
-        if message.type == gst.MESSAGE_EOS:
+        if message.type == gst.MessageType.EOS:
             self.state = self.STOPPED
 
     def __del__(self):
@@ -106,7 +106,7 @@ class soundtype:
         self.stop()
 
     def update(self):
-        self.bus.poll(gst.MESSAGE_ERROR, 10)
+        self.bus.poll(gst.MessageType.ERROR, 10)
 
     def loop(self):
         self.lock.acquire()
@@ -116,8 +116,8 @@ class soundtype:
                 self.stop()
 
             if self.state == self.STOPPED:
-              self.sound.seek_simple(gst.FORMAT_TIME, gst.SEEK_FLAG_FLUSH, 0)
-              self.sound.set_state(gst.STATE_PLAYING)
+              self.sound.seek_simple(gst.Format.TIME, gst.SeekFlags.FLUSH, 0)
+              self.sound.set_state(gst.State.PLAYING)
             self.state = self.LOOPING
         finally:
             self.lock.release()
@@ -126,7 +126,7 @@ class soundtype:
         if self.state != self.STOPPED:
             self.lock.acquire()
             try:
-                self.sound.set_state(gst.STATE_NULL)
+                self.sound.set_state(gst.State.NULL)
                 self.state = self.STOPPED
             finally:
                 self.lock.release()
@@ -139,8 +139,8 @@ class soundtype:
             if self.state == self.LOOPING:
                 self.stop()
 
-            self.sound.seek_simple(gst.FORMAT_TIME, gst.SEEK_FLAG_FLUSH, 0)
-            self.sound.set_state(gst.STATE_PLAYING)
+            self.sound.seek_simple(gst.Format.TIME, gst.SeekFlags.FLUSH, 0)
+            self.sound.set_state(gst.State.PLAYING)
             self.state = self.COUNTING
         finally:
             self.lock.release()
@@ -158,8 +158,8 @@ class soundtype:
         position = 0
         duration = 0
         try:
-            position = self.sound.query_position(gst.FORMAT_TIME)[0]
-            duration = self.sound.query_duration(gst.FORMAT_TIME)[0]
+            position = self.sound.query_position(gst.Format.TIME)[0]
+            duration = self.sound.query_duration(gst.Format.TIME)[0]
         except Exception, e:
             position = 0
             duration = 0
@@ -225,7 +225,12 @@ class soundplay:
                 try:
                     txtfile.write(data.arg)
                     txtfile.flush()
-                    os.system("text2wave -eval '("+voice+")' "+txtfilename+" -o "+wavfilename)
+                    if sys.platform == 'darwin':
+                        s = "say -v '" + voice + "' --data-format=LEF32@32000 -f " + txtfilename + " -o " + wavfilename
+                        os.system(s)
+                    else:
+                        os.system("text2wave -eval '("+voice+")' "+txtfilename+" -o "+wavfilename)
+
                     try:
                         if os.stat(wavfilename).st_size == 0:
                             raise OSError # So we hit the same catch block
